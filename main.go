@@ -29,7 +29,7 @@ func main() {
 	defer db.Close()
 
 	// Setup routes
-	http.HandleFunc("/mytabel", getAllItems)
+	http.HandleFunc("/", getAllItems)
 	http.HandleFunc("/mytabel/add", addItem)
 	http.HandleFunc("/mytabel/delete", deleteItem)
 
