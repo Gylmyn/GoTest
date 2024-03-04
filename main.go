@@ -2,12 +2,15 @@ package main
 
 import (
 	"database/sql"
-	"encoding/json"
+	"os"
+
+	// "encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 
 	"github.com/google/uuid"
+	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
 	_ "github.com/lib/pq"
 )
 
@@ -24,22 +27,37 @@ func main() {
 	var err error
 	db, err = sql.Open("postgres", connStr)
 	if err != nil {
-		log.Fatal(err)
+		panic(err)
 	}
 	defer db.Close()
 
-	// Setup routes
-	http.HandleFunc("/", getAllItems)
-	http.HandleFunc("/mytabel/add", addItem)
-	http.HandleFunc("/mytabel/delete", deleteItem)
+	// Setup Echo
+	e := echo.New()
 
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	// Middleware
+	e.Use(middleware.Logger())
+	e.Use(middleware.Recover())
+
+	// Routes
+	e.GET("/", welkam)
+	e.GET("/data", getAllItems)
+	e.POST("/mytable/add", addItem)
+	e.DELETE("/mytable/delete/:id", deleteItem)
+
+	// Start server
+	e.Logger.Fatal(e.Start(":" + os.Getenv("PORT")))
 }
 
-func getAllItems(w http.ResponseWriter, r *http.Request) {
+func welkam(c echo.Context) error {
+	welkam := fmt.Sprintln("Welkam Walaw We \n 1. /data")
+	return c.String(http.StatusOK, welkam)
+
+}
+
+func getAllItems(c echo.Context) error {
 	rows, err := db.Query("SELECT * FROM myitems")
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	defer rows.Close()
 
@@ -47,42 +65,39 @@ func getAllItems(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var item Item
 		if err := rows.Scan(&item.ID, &item.Name, &item.Price); err != nil {
-			log.Fatal(err)
+			return err
 		}
 		items = append(items, item)
 	}
-	json.NewEncoder(w).Encode(items)
+	return c.JSON(http.StatusOK, items)
 }
 
-func deleteItem(w http.ResponseWriter, r *http.Request) {
-	id := r.URL.Query().Get("id")
+func deleteItem(c echo.Context) error {
+	id := c.Param("id")
 	if id == "" {
-		http.Error(w, "ID parameter is required", http.StatusBadRequest)
-		return
+		return echo.NewHTTPError(http.StatusBadRequest, "ID parameter is required")
 	}
 
 	_, err := db.Exec("DELETE FROM myitems WHERE id = $1", id)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return err
 	}
 
-	fmt.Fprintf(w, "Item with ID %s deleted successfully\n", id)
+	return c.String(http.StatusOK, fmt.Sprintf("Item with ID %s deleted successfully\n", id))
 }
 
-func addItem(w http.ResponseWriter, r *http.Request) {
+func addItem(c echo.Context) error {
 	var item Item
-	if err := json.NewDecoder(r.Body).Decode(&item); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
+	if err := c.Bind(&item); err != nil {
+		return err
 	}
 
 	id := uuid.New()
 
 	_, err := db.Exec("INSERT INTO myitems(id, name, price) VALUES($1, $2, $3)", id, item.Name, item.Price)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
-	fmt.Fprintf(w, "Item added: %+v\n", item)
+	return c.JSON(http.StatusCreated, item)
 }
