@@ -41,23 +41,51 @@ func main() {
 	// Routes
 	e.GET("/", welkam)
 	e.GET("/data", getAllItems)
-	e.POST("/mytable/add", addItem)
-	e.DELETE("/mytable/delete/:id", deleteItem)
+	e.POST("/add/data", addItem)
+	e.DELETE("/delete/data/:id", deleteItem)
 
 	// Start server
 	e.Logger.Fatal(e.Start(":" + os.Getenv("PORT")))
 }
 
-func welkam(c echo.Context) error {
-	welkam := fmt.Sprintln("Welkam Walaw We \n 1. /data")
-	return c.String(http.StatusOK, welkam)
+type WelcomeData struct {
+	Title   string      `json:"title"`
+	Status  int         `json:"status"`
+	Message string      `json:"message"`
+	Data    interface{} `json:"endpoints"`
+}
 
+type Endpoints struct {
+	GetData       string `json:"getData"`
+	GetDetailData string `json:"getDetail"`
+}
+
+func welkam(c echo.Context) error {
+	welkam := fmt.Sprintln("Hii I Learn GoLang CIHUYYY😏")
+	endpoints := Endpoints{
+		GetData:       "/data",
+		GetDetailData: "/data/detail/:id",
+	}
+
+	return c.JSON(http.StatusOK, WelcomeData{
+		Title:   welkam,
+		Status:  http.StatusOK,
+		Message: "Success",
+		Data:    endpoints,
+	})
+
+}
+
+type Response struct {
+	Status  int         `json:"status"`
+	Message string      `json:"message"`
+	Data    interface{} `json:"data"`
 }
 
 func getAllItems(c echo.Context) error {
 	rows, err := db.Query("SELECT * FROM myitems")
 	if err != nil {
-		return err
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Gagal mengambil data dari database"})
 	}
 	defer rows.Close()
 
@@ -69,7 +97,11 @@ func getAllItems(c echo.Context) error {
 		}
 		items = append(items, item)
 	}
-	return c.JSON(http.StatusOK, items)
+	return c.JSON(http.StatusOK, Response{
+		Status:  http.StatusOK,
+		Message: "Success",
+		Data:    items,
+	})
 }
 
 func deleteItem(c echo.Context) error {
